@@ -131,11 +131,13 @@ module Rack
         end
 
         def on_mime_head mime_index, head, filename, content_type, name
+          puts "Class: #{@tempfile.class}"
           if filename
             body = @tempfile.call(filename, content_type)
             body.binmode if body.respond_to?(:binmode)
             klass = TempfilePart
             @open_files += 1
+          elsif content_type
           else
             body = ''.force_encoding(Encoding::ASCII_8BIT)
             klass = BufferPart
@@ -245,16 +247,19 @@ module Rack
           @buf.slice!(0, 2)          # Second \r\n
 
           content_type = head[MULTIPART_CONTENT_TYPE, 1]
-          if name = head[MULTIPART_CONTENT_DISPOSITION, 1]
-            name = Rack::Auth::Digest::Params::dequote(name)
+          if head[CONDISP]
+            if name = head[MULTIPART_CONTENT_DISPOSITION, 1]
+              name = Rack::Auth::Digest::Params::dequote(name)
+            else
+              name = head[MULTIPART_CONTENT_ID, 1]
+            end
+
+            filename = get_filename(head)
+            if name.nil? || name.empty?
+              name = filename || "#{content_type || TEXT_PLAIN}[]"
+            end
           else
-            name = head[MULTIPART_CONTENT_ID, 1]
-          end
-
-          filename = get_filename(head)
-
-          if name.nil? || name.empty?
-            name = filename || "#{content_type || TEXT_PLAIN}[]"
+            name = "#{content_type || TEXT_PLAIN}[]"
           end
 
           @collector.on_mime_head @mime_index, head, filename, content_type, name
